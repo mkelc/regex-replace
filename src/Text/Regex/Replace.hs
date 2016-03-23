@@ -1,10 +1,59 @@
 {-#LANGUAGE FlexibleContexts, OverloadedStrings, MultiParamTypeClasses, FunctionalDependencies  #-}
+{-|
+Module        :   Text.Regex.Replace
+Description   :   Provide replacement or substitution functions for the Regex packages
+Copyright     :   (c) Marian Kelc 2016
+License       :   GPL-3
+Maintainer    :   Marian Kelc <mkelc@web.de>
+Stability     :   experimental
+Portability   :   portable
+
+This library provides some simple replacement or substitutions functions for use with the standard Haskell
+regex libraries using the Text.Regex.Base api.
+
+Using regular expressions in Haskell I stumbled about the fact that there is no substituion function in the 
+basic regex libraries. Therefore I launched little project to build one out of the box.
+The basic 'replaceAll' and 'replaceFirst' functions are pretty straighforward, supporting references to
+matching subgroups in the expressions.
+
+Usage (here with TDFA Regex):
+
+@
+  
+  import Text.Regex.TDFA
+  import Text.Regex.Replace
+  
+  mkRe :: String -> Regex
+  mkRe = makeRegex
+  
+  main :: IO ()
+  main = do
+     let r= mkRe "a(b+[[:digit:]]+)-"
+         s= replaceAll "Here is an example: abbb24- and abbbbb39bb " r ":FOUND($1):"
+     putStrLn $ s
+@ 
+
+This will print
+
+@
+Here is an example: :FOUND(bbb24): and abbbbb39bb
+@
+
+Or in GHCI  REPL:
+
+>>> Prelude> :m + Text.Regex.Replace
+>>> Prelude Text.Regex.Replace> :m + Text.Regex.TDFA
+>>> Prelude Text.Regex.Replace Text.Regex.TDFA> let r= makeRegex "([[:alpha:]]+)=([[:digit:]]+)" :: Regex
+>>> Prelude Text.Regex.Replace Text.Regex.TDFA> replaceAll "a=14 b=19 foo=39" r "VAR $1:=$2;"
+"VAR a:=14; VAR b:=19; VAR foo:=39;"
+ -}
 module Text.Regex.Replace (
-    replaceAll
-   ,replaceFirst
-   ,replace
-   ,excise
+    -- * Replace functions (Standard API)
+    replaceAll, replaceFirst
+    -- * Experimental functions 
+   ,replace, excise
 ) where
+
 
 import Text.Regex.Base
 import Data.Array
@@ -14,20 +63,43 @@ import Control.Arrow (first,app)
 import Text.Parsec
 import Data.String
 
-replaceAll :: (Eq a, IsString a, Monoid a, Extract a, RegexLike r a, Stream s Identity Char) => a -> r -> s -> a
+-- | Replace all matches of a regular expression in a given StringLike argument.
+--   This is implemented in a generic manner so it should be usable with every
+--   library implementing the regex-base api.
+--
+--   Internal implementation uses kind of a difference list to make appending constructed strings cheap.
+--   Neveretheless performance was not tested.
+replaceAll :: (Eq a, IsString a, Monoid a, Extract a, RegexLike r a, Stream s Identity Char) => 
+   a      -- ^ The String to search the regular expression in
+   -> r   -- ^ The compiled regular expression (created with e.g. @makeRegex "..." :: Regex@)
+   -> s   -- ^ The substitution string. This can contain numbered backreferences to matching subgroups like this e.g. @$1@
+   -> a   -- ^ The resulting String
 replaceAll a r s = loop_ (mappend mempty,a)
    where rs = parseReplacement s
          loop_ (h,t) = if t == mempty
                        then h mempty
                        else loop_ $ first ((.) h ) $ replaceStep t r rs
 
-replaceFirst :: (IsString a, Monoid a, Extract a, RegexLike r a, Stream s Identity Char) => a -> r -> s -> a
+-- | Replace only the first match found in the searched string.
+replaceFirst :: (IsString a, Monoid a, Extract a, RegexLike r a, Stream s Identity Char) => 
+   a      -- ^ The String to search the regular expression in
+   -> r   -- ^ The compiled regular expression (created with e.g. @makeRegex "..." :: Regex@)
+   -> s   -- ^ The substitution string. This can contain numbered backreferences to matching subgroups like this e.g. @$1@
+   -> a   -- ^ The resulting String
 replaceFirst a r s = app $ replaceStep a r (parseReplacement s)
 
 
+-- | Like 'replaceAll' but uses only one match turn on the whole string and replaces all matches at once.
+--   This should be used very carefully because the behaviour on overlapping matches is undefined.
+--   
+--   Please note that is is an experimental function and my be subject to removal from the API.
 replace :: (IsString a, Monoid a, Extract a, RegexLike r a, Stream s Identity Char) => a -> r -> s -> a
 replace a r s = doreplace a (matchAll r a) s
 
+-- | Like @replaceAll@ with an empty replacement string, this function returns a string with all matching parts excised.
+--   This is meant to be short idiom for removing matches which is a common use case.
+--
+--   Please note that this is an experimental function and may be subject to removal from the API.
 excise :: (IsString a, Monoid a, Extract a, RegexLike r a) => a -> r -> a
 excise a r = doexcise a (matchAll r a)
 
