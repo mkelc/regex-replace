@@ -8,10 +8,8 @@ license:             GPL-3
 license-file:        LICENSE
 author:              Marian Kelc
 maintainer:          mkelc@web.de
--- copyright:           
 category:            Text
 build-type:          Simple
--- extra-source-files:  
 cabal-version:       >=1.10
 
 library
@@ -23,3 +21,19 @@ library
                       ,parsec >= 3.1
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -O2 -threaded
+
+test-suite test-regex-replace
+   type:             detailed-0.9
+   test-module:      Test.ReplaceTest
+   build-depends:    base >= 4.8 && <4.9
+                    ,Cabal >= 1.22.8
+                    ,HUnit >= 1.3
+                    ,regex-base
+                    ,regex-tdfa >= 1.2
+                    ,regex-posix >= 0.95
+                    ,regex-replace
+   hs-source-dirs:   test
+   default-language: Haskell2010
+   other-modules:    Distribution.TestSuite.HUnit 
+   ghc-options:      -Wall -O2 -threaded
